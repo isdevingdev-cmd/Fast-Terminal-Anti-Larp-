@@ -12,6 +12,14 @@ export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://api.mainnet-b
 export const RPC_WS_URL =
   process.env.NEXT_PUBLIC_RPC_WS_URL || RPC_URL.replace(/^http/, "ws");
 
+/**
+ * RPC URL for server-side code, read at RUNTIME (bracket access is not inlined by Next),
+ * so `next start` / Vercel pick up env changes without a rebuild. Falls back to the public one.
+ */
+export function serverRpcUrl(): string {
+  return process.env["RPC_URL"] || process.env["NEXT_PUBLIC_RPC_URL"] || RPC_URL;
+}
+
 /** Platform fee in basis points. 50 = 0.5 %. */
 export const PLATFORM_FEE_BPS = num(process.env.NEXT_PUBLIC_PLATFORM_FEE_BPS, 50);
 export const FEE_WALLET = process.env.NEXT_PUBLIC_FEE_WALLET || "";

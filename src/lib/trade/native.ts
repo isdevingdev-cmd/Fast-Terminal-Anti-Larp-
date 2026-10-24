@@ -25,6 +25,8 @@ import type { TradeProvider, TradeRequest } from "./types";
 
 const PROGRAM = new PublicKey(PUMP_PROGRAM_ID);
 const TOKEN_PROGRAM = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+/** pump.fun mints with Token-2022 since 2025; older tokens are classic SPL. We detect the owner of the mint. */
+export const TOKEN_2022_PROGRAM = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 const ASSOCIATED_TOKEN_PROGRAM = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 const BUY_DISC = Uint8Array.from([0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea]);
 const SELL_DISC = Uint8Array.from([0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad]);
@@ -47,9 +49,9 @@ export function pdaCreatorVault(creator: PublicKey) {
 export function pdaEventAuthority() {
   return PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], PROGRAM)[0];
 }
-export function ata(owner: PublicKey, mint: PublicKey) {
+export function ata(owner: PublicKey, mint: PublicKey, tokenProgram: PublicKey = TOKEN_PROGRAM) {
   return PublicKey.findProgramAddressSync(
-    [owner.toBuffer(), TOKEN_PROGRAM.toBuffer(), mint.toBuffer()],
+    [owner.toBuffer(), tokenProgram.toBuffer(), mint.toBuffer()],
     ASSOCIATED_TOKEN_PROGRAM,
   )[0];
 }
@@ -86,16 +88,16 @@ export function parseCurveAccount(data: Uint8Array): CurveAccount {
   return acc;
 }
 
-function createAtaIdempotentIx(payer: PublicKey, owner: PublicKey, mint: PublicKey): TransactionInstruction {
+function createAtaIdempotentIx(payer: PublicKey, owner: PublicKey, mint: PublicKey, tokenProgram: PublicKey): TransactionInstruction {
   return new TransactionInstruction({
     programId: ASSOCIATED_TOKEN_PROGRAM,
     keys: [
       { pubkey: payer, isSigner: true, isWritable: true },
-      { pubkey: ata(owner, mint), isSigner: false, isWritable: true },
+      { pubkey: ata(owner, mint, tokenProgram), isSigner: false, isWritable: true },
       { pubkey: owner, isSigner: false, isWritable: false },
       { pubkey: mint, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_PROGRAM, isSigner: false, isWritable: false },
+      { pubkey: tokenProgram, isSigner: false, isWritable: false },
     ],
     data: Buffer.from([1]), // CreateIdempotent
   });
@@ -108,8 +110,13 @@ export function makeNativeProvider(connection: Connection): TradeProvider {
       const user = new PublicKey(userPublicKey);
       const mint = new PublicKey(req.mint);
       const curvePk = pdaBondingCurve(mint);
-      const info = await connection.getAccountInfo(curvePk, "processed");
+      const [info, mintInfo] = await Promise.all([
+        connection.getAccountInfo(curvePk, "processed"),
+        connection.getAccountInfo(mint, "processed"),
+      ]);
       if (!info) throw new Error("Bonding curve introuvable (token migré ?)");
+      if (!mintInfo) throw new Error("Mint introuvable");
+      const tokenProgram = mintInfo.owner.equals(TOKEN_2022_PROGRAM) ? TOKEN_2022_PROGRAM : TOKEN_PROGRAM;
       const curve = parseCurveAccount(new Uint8Array(info.data));
       if (curve.complete) throw new Error("Courbe terminée : utiliser le provider pumpportal (PumpSwap)");
       if (!curve.creator) throw new Error("Ancienne version de courbe non supportée");
@@ -127,8 +134,8 @@ export function makeNativeProvider(connection: Connection): TradeProvider {
       const common = {
         global: pdaGlobal(),
         feeRecipient: new PublicKey(PUMP_FEE_RECIPIENT),
-        curveAta: ata(curvePk, mint),
-        userAta: ata(user, mint),
+        curveAta: ata(curvePk, mint, tokenProgram),
+        userAta: ata(user, mint, tokenProgram),
         creatorVault: pdaCreatorVault(curve.creator),
         eventAuthority: pdaEventAuthority(),
       };
@@ -137,7 +144,7 @@ export function makeNativeProvider(connection: Connection): TradeProvider {
         const solIn = BigInt(Math.round(Number(req.amount) * 1e9));
         const tokensOut = quoteBuy(curve.virtualSolReserves, curve.virtualTokenReserves, solIn);
         const maxSol = solIn + (solIn * slip) / 10_000n;
-        ixs.push(createAtaIdempotentIx(user, user, mint));
+        ixs.push(createAtaIdempotentIx(user, user, mint, tokenProgram));
         data = new Uint8Array([...BUY_DISC, ...u64le(tokensOut), ...u64le(maxSol)]);
         keys = [
           { pubkey: common.global, isSigner: false, isWritable: false },
@@ -148,7 +155,7 @@ export function makeNativeProvider(connection: Connection): TradeProvider {
           { pubkey: common.userAta, isSigner: false, isWritable: true },
           { pubkey: user, isSigner: true, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: TOKEN_PROGRAM, isSigner: false, isWritable: false },
+          { pubkey: tokenProgram, isSigner: false, isWritable: false },
           { pubkey: common.creatorVault, isSigner: false, isWritable: true },
           { pubkey: common.eventAuthority, isSigner: false, isWritable: false },
           { pubkey: PROGRAM, isSigner: false, isWritable: false },
@@ -176,7 +183,7 @@ export function makeNativeProvider(connection: Connection): TradeProvider {
           { pubkey: user, isSigner: true, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
           { pubkey: common.creatorVault, isSigner: false, isWritable: true },
-          { pubkey: TOKEN_PROGRAM, isSigner: false, isWritable: false },
+          { pubkey: tokenProgram, isSigner: false, isWritable: false },
           { pubkey: common.eventAuthority, isSigner: false, isWritable: false },
           { pubkey: PROGRAM, isSigner: false, isWritable: false },
         ];

@@ -4,7 +4,10 @@ import { PublicKey } from "@solana/web3.js";
 import { getConnection, useWallet } from "../wallet/store";
 import { usePositions } from "../store/positions";
 
-const TOKEN_PROGRAM = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const TOKEN_PROGRAMS = [
+  new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+  new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"), // Token-2022 (pump.fun since 2025)
+];
 
 /** Polls SPL balances of the active wallet and syncs them into open positions. */
 export function useTokenBalances(intervalMs = 10_000) {
@@ -16,10 +19,13 @@ export function useTokenBalances(intervalMs = 10_000) {
     let stop = false;
     const tick = async () => {
       try {
-        const res = await getConnection().getParsedTokenAccountsByOwner(new PublicKey(wallet), { programId: TOKEN_PROGRAM }, "processed");
+        const owner = new PublicKey(wallet);
+        const results = await Promise.all(
+          TOKEN_PROGRAMS.map((programId) => getConnection().getParsedTokenAccountsByOwner(owner, { programId }, "processed")),
+        );
         if (stop) return;
         const seen = new Map<string, number>();
-        for (const acc of res.value) {
+        for (const acc of results.flatMap((r) => r.value)) {
           const info = acc.account.data.parsed?.info as { mint: string; tokenAmount: { uiAmount: number | null } } | undefined;
           if (!info) continue;
           seen.set(info.mint, info.tokenAmount.uiAmount ?? 0);

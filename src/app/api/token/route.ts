@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { RPC_URL } from "@/lib/config";
+import { serverRpcUrl } from "@/lib/config";
 import { ipfsToHttp, METAPLEX_METADATA_PROGRAM_ID, normaliseOffchainMetadata, parseMetaplexMetadata } from "@/lib/pump/metadata";
 import { isValidPublicKey } from "@/lib/base58";
 
@@ -41,18 +41,35 @@ export async function GET(req: Request) {
   let symbol = "";
   if (!uri) {
     try {
-      const conn = new Connection(RPC_URL, "confirmed");
-      const [pda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("metadata"), new PublicKey(METAPLEX_METADATA_PROGRAM_ID).toBuffer(), new PublicKey(mint).toBuffer()],
-        new PublicKey(METAPLEX_METADATA_PROGRAM_ID),
-      );
-      const acc = await conn.getAccountInfo(pda);
-      if (acc) {
-        const parsed = parseMetaplexMetadata(new Uint8Array(acc.data));
-        if (parsed) {
-          name = parsed.name;
-          symbol = parsed.symbol;
-          uri = parsed.uri;
+      const conn = new Connection(serverRpcUrl(), "confirmed");
+      const mintPk = new PublicKey(mint);
+      // pump.fun mints with Token-2022 since 2025: name/symbol/uri live in the mint's TokenMetadata extension.
+      const parsedMint = await conn.getParsedAccountInfo(mintPk);
+      const data = parsedMint.value?.data;
+      const ext =
+        data && "parsed" in data
+          ? ((data.parsed as { info?: { extensions?: { extension: string; state?: Record<string, string> }[] } }).info?.extensions ?? []).find(
+              (e) => e.extension === "tokenMetadata",
+            )
+          : undefined;
+      if (ext?.state) {
+        name = ext.state.name ?? "";
+        symbol = ext.state.symbol ?? "";
+        uri = ext.state.uri ?? "";
+      } else {
+        // Older SPL-Token mints: Metaplex metadata PDA.
+        const [pda] = PublicKey.findProgramAddressSync(
+          [Buffer.from("metadata"), new PublicKey(METAPLEX_METADATA_PROGRAM_ID).toBuffer(), mintPk.toBuffer()],
+          new PublicKey(METAPLEX_METADATA_PROGRAM_ID),
+        );
+        const acc = await conn.getAccountInfo(pda);
+        if (acc) {
+          const parsed = parseMetaplexMetadata(new Uint8Array(acc.data));
+          if (parsed) {
+            name = parsed.name;
+            symbol = parsed.symbol;
+            uri = parsed.uri;
+          }
         }
       }
     } catch (e) {
