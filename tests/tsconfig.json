@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "../.test-dist",
+    "rootDir": "..",
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "es2022",
+      "dom"
+    ]
+  },
+  "include": [
+    "./*.test.ts",
+    "../src/lib/pump/**/*.ts",
+    "../src/lib/larpcheck/**/*.ts",
+    "../src/lib/base58.ts",
+    "../src/lib/format.ts",
+    "../src/lib/config.ts",
+    "../src/lib/wallet/crypto.ts",
+    "../src/lib/trade/fees.ts",
+    "../src/lib/trade/types.ts",
+    "../src/lib/chart/**/*.ts"
+  ],
+  "exclude": [
+    "../src/lib/larpcheck/client.ts"
+  ]
+}
