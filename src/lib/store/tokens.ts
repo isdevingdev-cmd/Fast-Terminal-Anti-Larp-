@@ -42,6 +42,10 @@ export function blankToken(mint: string, partial: Partial<TrackedToken> = {}): T
     bondingCurve: partial.bondingCurve ?? "",
     creator: partial.creator ?? "",
     createdAt: partial.createdAt ?? Date.now(),
+    createdKnown: partial.createdKnown ?? false,
+    totalSupplyUnits: partial.totalSupplyUnits ?? 1_000_000_000_000_000n,
+    initialVirtualSol: partial.initialVirtualSol ?? INITIAL_VIRTUAL_SOL_LAMPORTS,
+    source: "pump",
     stage: partial.stage ?? "bonding",
     metadataStatus: "idle",
     virtualSolReserves: partial.virtualSolReserves ?? INITIAL_VIRTUAL_SOL_LAMPORTS,
@@ -62,14 +66,21 @@ export function blankToken(mint: string, partial: Partial<TrackedToken> = {}): T
     bundleShare: 0,
     creatorTokenUnits: 0n,
     recentTrades: [],
+    zeroSolTrades: 0,
     ...partial,
   };
 }
 
 function applyTrade(t: TrackedToken, ev: PumpTradeEvent, createSlot: number | undefined) {
+  // Zero-SOL "trades" (Mayhem agent inventory moves, internal transfers) carry no price information.
+  if (ev.solAmount === 0n || ev.virtualSolReserves === 0n) {
+    t.zeroSolTrades += 1;
+    t.traders.add(ev.user);
+    return;
+  }
   t.virtualSolReserves = ev.virtualSolReserves;
   t.virtualTokenReserves = ev.virtualTokenReserves;
-  t.marketCapSol = marketCapSol(ev.virtualSolReserves, ev.virtualTokenReserves);
+  t.marketCapSol = marketCapSol(ev.virtualSolReserves, ev.virtualTokenReserves, t.totalSupplyUnits);
   t.bondingProgress = bondingProgress(ev.virtualTokenReserves);
   t.lastTradeAt = ev.receivedAt;
   t.tradeCount += 1;
@@ -89,7 +100,7 @@ function applyTrade(t: TrackedToken, ev: PumpTradeEvent, createSlot: number | un
   }
   t.recentTrades.push(ev);
   if (t.recentTrades.length > MAX_RECENT_TRADES) t.recentTrades.splice(0, t.recentTrades.length - MAX_RECENT_TRADES);
-  if (t.stage === "new" && (t.bondingProgress > 0.05 || Date.now() - t.createdAt > 10 * 60_000)) {
+  if (t.stage === "new" && (t.bondingProgress >= 0.3 || Date.now() - t.createdAt > 30 * 60_000)) {
     t.stage = "bonding";
   }
 }
@@ -120,16 +131,24 @@ export const useTokenStore = create<TokenStoreState>()((set, get) => ({
         t.symbol = ev.symbol;
         t.uri = ev.uri;
         t.bondingCurve = ev.bondingCurve;
-        t.creator = ev.creator;
-        t.createdAt = ev.receivedAt;
+        t.creator = ev.creator || ev.user;
+        t.createdAt = ev.timestamp ? ev.timestamp * 1000 : ev.receivedAt;
+        t.createdKnown = true;
+        if (ev.tokenTotalSupply) t.totalSupplyUnits = ev.tokenTotalSupply;
+        if (ev.virtualSolReserves) {
+          t.initialVirtualSol = ev.virtualSolReserves;
+          t.virtualSolReserves = ev.virtualSolReserves;
+        }
+        if (ev.virtualTokenReserves) t.virtualTokenReserves = ev.virtualTokenReserves;
+        t.marketCapSol = marketCapSol(t.virtualSolReserves, t.virtualTokenReserves, t.totalSupplyUnits);
         t.stage = "new";
         tokens.delete(ev.mint); // re-insert to keep Map in insertion order (recent last)
         tokens.set(ev.mint, t);
       } else if (ev.kind === "trade") {
         let t = tokens.get(ev.mint);
         if (!t) {
-          // Token created before we connected: track it with unknown identity, metadata resolved lazily.
-          t = blankToken(ev.mint, { createdAt: ev.receivedAt, stage: "bonding" });
+          // Token created before we connected: identity and age unknown until metadata/backfill resolve them.
+          t = blankToken(ev.mint, { createdAt: ev.receivedAt, createdKnown: false, stage: "bonding" });
           tokens.set(ev.mint, t);
         }
         applyTrade(t, ev, createSlots.get(ev.mint));
@@ -180,10 +199,11 @@ export const useTokenStore = create<TokenStoreState>()((set, get) => ({
 /** Derived lists; call inside useMemo keyed on `version`. */
 export function selectColumns(tokens: Map<string, TrackedToken>) {
   const all = [...tokens.values()];
-  const fresh = all.filter((t) => t.stage === "new").sort((a, b) => b.createdAt - a.createdAt);
+  const fresh = all.filter((t) => t.stage === "new" && t.createdKnown).sort((a, b) => b.createdAt - a.createdAt);
+  // Column thresholds (e.g. bonding ≥ 30 %) live in the per-column filters; here we only split by stage.
   const bonding = all
-    .filter((t) => t.stage === "bonding" && t.bondingProgress >= 0.3)
-    .sort((a, b) => b.bondingProgress - a.bondingProgress);
+    .filter((t) => t.stage === "bonding" && t.marketCapSol > 0)
+    .sort((a, b) => b.bondingProgress - a.bondingProgress || b.lastTradeAt - a.lastTradeAt);
   const migrated = all.filter((t) => t.stage === "migrated").sort((a, b) => b.lastTradeAt - a.lastTradeAt);
   return { fresh, bonding, migrated };
 }

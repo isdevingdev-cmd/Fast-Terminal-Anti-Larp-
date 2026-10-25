@@ -9,12 +9,13 @@ Inspiré de la structure de [Motion](https://motion.gift/) (trenches New / Almos
 | Module | État | Détails |
 | --- | --- | --- |
 | Flux live pump.fun | ✅ | `logsSubscribe` sur le programme pump.fun via ton RPC, décodage des événements Anchor (`CreateEvent`, `TradeEvent`, `CompleteEvent`) en local. Aucun vendeur de données tiers. |
-| Trenches | ✅ | Trois colonnes, MC/vol/tx/B-S en direct, barre de bonding, flags DEV SOLD / BUNDLE / DEV %, filtres LarpCheck, pause. |
+| Trenches | ✅ | Trois colonnes, MC/vol/tx/B-S en direct, barre de bonding, flags DEV SOLD / BUNDLE / DEV % / MAYHEM, âge on-chain, pause. |
 | Page token | ✅ | Chart en bougies (lightweight-charts) construit depuis les trades + backfill on-chain, flux de trades, top traders, sécurité, dev, distribution. |
 | Wallet | ✅ | Keypairs générés/importés dans le navigateur, chiffrés AES-256-GCM (PBKDF2) en localStorage, export clé privée. |
-| Trading | ✅ (à valider on-chain) | Provider **PumpPortal local API** (tx non signée → signature locale → envoi RPC ou Jito). Frais plateforme et tip Jito ajoutés dans la même tx. |
-| Trading natif | 🧪 | `src/lib/trade/native.ts` construit directement les instructions `buy`/`sell` de pump.fun (0 intermédiaire). Non encore exercé sur mainnet : à tester avec de petits montants avant d'activer `NEXT_PUBLIC_TRADE_PROVIDER=native`. |
-| LarpCheck | ✅ | `/api/larpcheck` : six checks sur l'API GitHub, score /10, tier S–F, heatmap de commits. Badge sur chaque ligne, panneau détaillé, page scanner. |
+| Trading natif (courbe) | ✅ simulé mainnet | `src/lib/trade/native.ts` construit `buy_exact_quote_in_v3` / `sell_v3` de pump.fun en local (0 intermédiaire). Buy et sell simulés avec succès sur mainnet le 2026-10-25 (`docs/pump-v3.md`). Signature locale, frais plateforme + tip Jito dans la même tx. |
+| Trading après migration | ✅ | PumpSwap / Raydium / Bonk via **PumpPortal local API** (0,5 % PumpPortal) en attendant la version native de l'AMM. Repli automatique si le natif échoue. |
+| Filtres | ✅ | Par colonne (MC, âge, traders, tx, volume, dev, bundle, bonding, socials, image, GitHub, mots-clés, Mayhem, LarpCheck), réglages d'affichage, import/export JSON. |
+| LarpCheck | ✅ | `/api/larpcheck` : six checks sur l'API GitHub, score /10, tier S–F, heatmap de commits. Scan déclenché à l'ouverture d'un token (pas sur les lignes, pour ménager l'API GitHub), panneau détaillé, page scanner. |
 | Positions | ✅ | PnL live depuis la courbe, soldes SPL rafraîchis, ventes 25/50/100 %. TP/SL : modèle prêt, exécution automatique **à faire**. |
 | Fee audit | ✅ | Page de transparence sur les frais. |
 
@@ -58,18 +59,18 @@ Principes : la couche `lib/pump`, `lib/chart` et `lib/larpcheck/scoring` est pur
 
 - Frais plateforme : `NEXT_PUBLIC_PLATFORM_FEE_BPS` (50 = 0,5 %), transférés vers `NEXT_PUBLIC_FEE_WALLET` dans la transaction signée par l'utilisateur.
 - pump.fun prélève 1 % sur toutes les plateformes.
-- Avec le provider PumpPortal, PumpPortal prélève 0,5 % supplémentaires : c'est précisément ce que le provider natif supprime.
+- Sur la bonding curve, aucun intermédiaire (instructions natives). Après migration, PumpPortal prélève 0,5 % supplémentaires jusqu'à la version native de PumpSwap.
 
 ## Roadmap
 
-1. Valider le provider natif sur mainnet (petits montants), puis le rendre par défaut sur la courbe ; PumpSwap natif ensuite.
+1. PumpSwap natif (supprimer le dernier intermédiaire après migration) ; décodage des trades PumpSwap pour un MC live dans la colonne Migrated.
 2. Exécution automatique des TP/SL (worker côté client tant qu'un onglet est ouvert, comme Motion).
 3. Tracker de wallets (`subscribe` sur des adresses), alertes.
-4. Multi-chaînes (Base via le launchpad maison, BNB).
+4. Tout le marché SOL : Bonk (LaunchLab), Believe, Moonshot, puis multi-chaînes (Base, BNB).
 5. Carte de verdict LarpCheck partageable (image OG).
 
 ## Sécurité
 
 - Non-custodial : clés chiffrées localement, jamais transmises.
 - Exporte et sauvegarde la clé privée de chaque wallet : vider le stockage du navigateur la supprime.
-- Le code de trading natif est expérimental. Une erreur d'instruction fait échouer la transaction (pas de perte de fonds hors frais réseau), mais teste toujours avec de petits montants.
+- Le trading natif a été validé par simulation mainnet, pas encore par un envoi réel depuis cette app : commence par de petits montants.

@@ -1,26 +1,14 @@
 import { NextResponse } from "next/server";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { serverRpcUrl } from "@/lib/config";
-import { ipfsToHttp, METAPLEX_METADATA_PROGRAM_ID, normaliseOffchainMetadata, parseMetaplexMetadata } from "@/lib/pump/metadata";
+import { METAPLEX_METADATA_PROGRAM_ID, normaliseOffchainMetadata, parseMetaplexMetadata } from "@/lib/pump/metadata";
+import { fetchMetadataJson } from "@/lib/pump/ipfs";
 import { isValidPublicKey } from "@/lib/base58";
 
 export const runtime = "nodejs";
 
 const cache = new Map<string, { at: number; body: unknown }>();
 const TTL = 10 * 60_000;
-
-async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
-  try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 6000);
-    const res = await fetch(url, { signal: ctl.signal, headers: { accept: "application/json" }, next: { revalidate: 600 } });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * GET /api/token?mint=<mint>&uri=<optional metadata uri>
@@ -39,24 +27,27 @@ export async function GET(req: Request) {
 
   let name = "";
   let symbol = "";
-  if (!uri) {
+  let supply: string | null = null;
+  let tokenProgram: string | null = null;
+  {
     try {
       const conn = new Connection(serverRpcUrl(), "confirmed");
       const mintPk = new PublicKey(mint);
       // pump.fun mints with Token-2022 since 2025: name/symbol/uri live in the mint's TokenMetadata extension.
       const parsedMint = await conn.getParsedAccountInfo(mintPk);
       const data = parsedMint.value?.data;
-      const ext =
+      tokenProgram = parsedMint.value?.owner.toBase58() ?? null;
+      const info =
         data && "parsed" in data
-          ? ((data.parsed as { info?: { extensions?: { extension: string; state?: Record<string, string> }[] } }).info?.extensions ?? []).find(
-              (e) => e.extension === "tokenMetadata",
-            )
+          ? (data.parsed as { info?: { supply?: string; extensions?: { extension: string; state?: Record<string, string> }[] } }).info
           : undefined;
+      supply = info?.supply ?? null;
+      const ext = (info?.extensions ?? []).find((e) => e.extension === "tokenMetadata");
       if (ext?.state) {
         name = ext.state.name ?? "";
         symbol = ext.state.symbol ?? "";
         uri = ext.state.uri ?? "";
-      } else {
+      } else if (!uri) {
         // Older SPL-Token mints: Metaplex metadata PDA.
         const [pda] = PublicKey.findProgramAddressSync(
           [Buffer.from("metadata"), new PublicKey(METAPLEX_METADATA_PROGRAM_ID).toBuffer(), mintPk.toBuffer()],
@@ -77,7 +68,7 @@ export async function GET(req: Request) {
     }
   }
 
-  const json = uri ? await fetchJson(ipfsToHttp(uri)) : null;
+  const json = uri ? await fetchMetadataJson(uri) : null;
   const metadata = json ? normaliseOffchainMetadata(json) : null;
   const body = {
     mint,
@@ -85,6 +76,10 @@ export async function GET(req: Request) {
     symbol: symbol || (json?.symbol as string | undefined) || "",
     uri,
     metadata,
+    supply,
+    tokenProgram,
+    /** Mayhem-mode coins mint 2B tokens (1B curve + 1B agent inventory). */
+    mayhem: supply === "2000000000000000",
   };
   cache.set(key, { at: Date.now(), body });
   if (cache.size > 5000) {

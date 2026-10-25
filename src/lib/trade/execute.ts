@@ -15,8 +15,14 @@ import { makeNativeProvider } from "./native";
 import type { TradeProvider, TradeRequest, TradeResult } from "./types";
 import { usePositions } from "../store/positions";
 
-function pickProvider(connection: Connection): TradeProvider {
-  return TRADE_PROVIDER === "native" ? makeNativeProvider(connection) : pumpPortalProvider;
+/**
+ * Native builder on the bonding curve (no middleman fee, simulated OK on mainnet 2026-10-25);
+ * PumpPortal for everything else (PumpSwap / Raydium / Bonk) until the native AMM leg lands.
+ * NEXT_PUBLIC_TRADE_PROVIDER=pumpportal forces the proxy everywhere.
+ */
+function pickProvider(connection: Connection, req: TradeRequest): TradeProvider {
+  if (TRADE_PROVIDER === "pumpportal") return pumpPortalProvider;
+  return req.pool === "pump" ? makeNativeProvider(connection) : pumpPortalProvider;
 }
 
 async function loadLookupTables(connection: Connection, tx: VersionedTransaction): Promise<AddressLookupTableAccount[]> {
@@ -85,11 +91,20 @@ export interface ExecuteContext {
 
 export async function executeTrade(req: TradeRequest, ctx: ExecuteContext): Promise<TradeResult> {
   const { connection, payer, onStatus } = ctx;
-  const provider = pickProvider(connection);
+  const provider = pickProvider(connection, req);
   const t0 = performance.now();
 
   onStatus?.("Construction de la transaction…");
-  const { txBase64 } = await provider.buildSwap(req, payer.publicKey.toBase58());
+  let txBase64: string;
+  try {
+    ({ txBase64 } = await provider.buildSwap(req, payer.publicKey.toBase58()));
+  } catch (e) {
+    if (provider.id === "native") {
+      // Curve completed between the feed and the click, or an unexpected layout: fall back to the proxy.
+      onStatus?.(`Natif indisponible (${(e as Error).message}) — repli PumpPortal…`);
+      ({ txBase64 } = await pumpPortalProvider.buildSwap({ ...req, pool: "auto" }, payer.publicKey.toBase58()));
+    } else throw e;
+  }
 
   onStatus?.("Signature…");
   const signed = await finalizeTransaction(connection, txBase64, payer, req, ctx.solBasis);

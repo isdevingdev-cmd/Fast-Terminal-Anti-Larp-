@@ -41,7 +41,7 @@ export function normaliseOffchainMetadata(json: Record<string, unknown>): TokenM
   const twitter = str(json.twitter) || str(ext.twitter);
   const telegram = str(json.telegram) || str(ext.telegram);
   const description = str(json.description);
-  const image = ipfsToHttp(str(json.image));
+  const image = str(json.image) || str((json.properties as Record<string, unknown> | undefined)?.image as string | undefined);
 
   const haystack = JSON.stringify(json);
   const links = Array.from(new Set((haystack.match(URL_RE) ?? []).map((u) => u.replace(/\\$/, ""))));

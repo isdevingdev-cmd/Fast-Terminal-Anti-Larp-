@@ -5,6 +5,7 @@ const SIZES = [0.1, 0.5, 1, 2, 5, 10];
 export default function FeeAuditPage() {
   const ours = PLATFORM_FEE_BPS / 100;
   const middleman = TRADE_PROVIDER === "pumpportal" ? 0.5 : 0;
+  const auto = TRADE_PROVIDER !== "pumpportal";
   return (
     <div className="mx-auto max-w-4xl overflow-y-auto p-8">
       <h1 className="text-2xl font-extrabold">Fee audit</h1>
@@ -25,12 +26,12 @@ export default function FeeAuditPage() {
           <span className="text-xs text-mut">prélevé par le programme pump.fun sur toutes les plateformes, y compris Photon et Axiom</span>
         </div>
         <div className="rounded-lg border border-line2 bg-panel p-4">
-          <small className="text-[10px] uppercase tracking-wider text-dim">Constructeur de tx</small>
+          <small className="text-[10px] uppercase tracking-wider text-dim">Intermédiaire</small>
           <b className="block text-3xl font-extrabold">{middleman}%</b>
           <span className="text-xs text-mut">
-            {TRADE_PROVIDER === "pumpportal"
-              ? "PumpPortal (local API) tant que le provider natif n'est pas activé — objectif 0 %"
-              : "instructions pump.fun construites en local : aucun intermédiaire"}
+            {auto
+              ? "sur la bonding curve : instructions pump.fun construites en local, aucun intermédiaire. Après migration (PumpSwap) : PumpPortal, 0,5 % en attendant la version native."
+              : "PumpPortal (local API) forcé par la configuration"}
           </span>
         </div>
       </div>

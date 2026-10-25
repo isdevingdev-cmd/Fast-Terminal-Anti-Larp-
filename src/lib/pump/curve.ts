@@ -13,9 +13,10 @@ export function priceSol(vSol: bigint, vTokens: bigint): number {
   return (Number(vSol) / 1e9) / (Number(vTokens) / 1e6);
 }
 
-/** Market cap in SOL = price * total supply (1B tokens). */
-export function marketCapSol(vSol: bigint, vTokens: bigint): number {
-  return priceSol(vSol, vTokens) * Number(TOTAL_SUPPLY_TOKENS);
+/** Market cap in SOL = price * total supply (default 1B tokens; pass the coin's supply in base units to override). */
+export function marketCapSol(vSol: bigint, vTokens: bigint, supplyUnits?: bigint): number {
+  const supplyTokens = supplyUnits !== undefined && supplyUnits > 0n ? Number(supplyUnits) / 1e6 : Number(TOTAL_SUPPLY_TOKENS);
+  return priceSol(vSol, vTokens) * supplyTokens;
 }
 
 /**

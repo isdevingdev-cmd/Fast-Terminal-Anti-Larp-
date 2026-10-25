@@ -5,7 +5,18 @@ export interface PumpCreateEvent {
   uri: string;
   mint: string;
   bondingCurve: string;
+  /** transaction signer that created the coin */
+  user: string;
+  /** on-chain creator (fee receiver); equals `user` on legacy events */
   creator: string;
+  /** unix seconds from the chain (extended events only) */
+  timestamp?: number;
+  virtualTokenReserves?: bigint;
+  virtualSolReserves?: bigint;
+  realTokenReserves?: bigint;
+  tokenTotalSupply?: bigint;
+  /** undecoded trailing bytes of the extended event */
+  tail?: Uint8Array;
   signature: string;
   slot: number;
   /** ms epoch when we received it */
@@ -66,6 +77,15 @@ export interface TrackedToken {
   bondingCurve: string;
   creator: string;
   createdAt: number; // ms
+  /** true when createdAt comes from the chain (CreateEvent / backfill), false when it is only "first seen" */
+  createdKnown: boolean;
+  /** total supply in token base units (1e15 = 1B tokens; Mayhem coins mint 2B but trade on a 1B curve) */
+  totalSupplyUnits: bigint;
+  /** initial virtual SOL of this coin's curve (varies per launch config) */
+  initialVirtualSol: bigint;
+  /** Mayhem mode (AI agent trades the coin for 24h; 2B minted) */
+  mayhem?: boolean;
+  source: "pump";
   stage: TokenStage;
   metadata?: TokenMetadata;
   metadataStatus: "idle" | "loading" | "done" | "error";
@@ -93,4 +113,6 @@ export interface TrackedToken {
   creatorTokenUnits: bigint;
   /** last N trades for sparkline / chart bootstrap */
   recentTrades: PumpTradeEvent[];
+  /** trades with 0 SOL (agent / internal transfers) — counted, never priced */
+  zeroSolTrades: number;
 }

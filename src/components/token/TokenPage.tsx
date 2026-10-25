@@ -12,6 +12,7 @@ import type { TrackedToken } from "@/lib/pump/types";
 import { fmtCompact, fmtPrice, fmtUsd, shortAddr, timeAgo } from "@/lib/format";
 import { isValidPublicKey } from "@/lib/base58";
 import { TierBadge } from "@/components/larp/TierBadge";
+import { TokenImage } from "@/components/ui/TokenImage";
 import { LarpPanel } from "@/components/larp/LarpPanel";
 import { TradePanel } from "@/components/trade/TradePanel";
 import { TokenChart } from "./TokenChart";
@@ -57,18 +58,14 @@ export function TokenPage({ mint }: { mint: string }) {
         <Link href="/" className="rounded-md border border-line2 px-2 py-1.5 text-xs text-mut hover:text-txt">
           ← Trenches
         </Link>
-        {md?.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={md.image} alt="" className="h-[42px] w-[42px] rounded-[11px] object-cover" referrerPolicy="no-referrer" />
-        ) : (
-          <div className="h-[42px] w-[42px] rounded-[11px] bg-gradient-to-br from-line2 to-panel2" />
-        )}
+        <TokenImage src={md?.image} size={42} radius={11} />
         <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-[17px] font-extrabold">
             {token.symbol || shortAddr(mint)}
             <span className="truncate text-[13px] font-medium text-mut">{token.name}</span>
             <TierBadge entry={larp} size="md" />
             {token.stage === "migrated" ? <span className="flag flag-c">PumpSwap</span> : <span className="flag flag-p">pump.fun</span>}
+            {token.mayhem && <span className="flag flag-w" title="Mayhem mode : agent IA pump.fun pendant 24 h, 2 Md de supply">MAYHEM</span>}
             {token.devSold && <span className="flag flag-b">DEV SOLD</span>}
           </h1>
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-dim">
@@ -88,7 +85,7 @@ export function TokenPage({ mint }: { mint: string }) {
             {github && <a className="rounded border border-cyan/30 px-1.5 text-cyan" href={github} target="_blank" rel="noreferrer">GitHub</a>}
             <a className="rounded border border-line2 px-1.5" href={`https://pump.fun/coin/${mint}`} target="_blank" rel="noreferrer">pump.fun</a>
             <a className="rounded border border-line2 px-1.5" href={`https://solscan.io/token/${mint}`} target="_blank" rel="noreferrer">Solscan</a>
-            <span>· créé {timeAgo(token.createdAt)}</span>
+            <span>· {token.createdKnown ? `créé il y a ${timeAgo(token.createdAt)}` : "date de création en cours de résolution"}</span>
           </div>
         </div>
         <div className="ml-3 flex h-full border-l border-line">

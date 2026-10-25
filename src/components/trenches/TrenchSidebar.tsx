@@ -2,7 +2,6 @@
 import { useSettings } from "@/lib/store/settings";
 import { useWallet } from "@/lib/wallet/store";
 import { shortAddr } from "@/lib/format";
-import { TIER_ORDER, type LarpTier } from "@/lib/larpcheck/types";
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -76,45 +75,14 @@ export function TrenchSidebar() {
         <label className="kv">
           MEV protect (Jito) <Toggle on={s.mevProtect} onChange={(v) => s.set({ mevProtect: v })} />
         </label>
-        <label className="kv">
-          Afficher en USD <Toggle on={s.showUsd} onChange={(v) => s.set({ showUsd: v })} />
-        </label>
       </div>
 
       <div className="border-b border-line p-3">
-        <div className="section-title">
-          Filtres LarpCheck
-          <button className="normal-case tracking-normal text-acc2" onClick={() => s.setLarp({ minTier: null, hideFullLarp: false, hideBundled: false, hideDevHeavy: false, requireGithub: false })}>
-            Reset
-          </button>
-        </div>
-        <label className="kv">
-          Tier minimum
-          <select
-            className="rounded border border-line2 bg-bg px-1 py-0.5 text-txt"
-            value={s.larp.minTier ?? ""}
-            onChange={(e) => s.setLarp({ minTier: (e.target.value || null) as LarpTier | null })}
-          >
-            <option value="">aucun</option>
-            {TIER_ORDER.slice(0, 5).map((t) => (
-              <option key={t} value={t}>
-                {t} et +
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="kv">
-          Masquer « Full LARP » <Toggle on={s.larp.hideFullLarp} onChange={(v) => s.setLarp({ hideFullLarp: v })} />
-        </label>
-        <label className="kv">
-          Masquer bundle &gt; 30 % <Toggle on={s.larp.hideBundled} onChange={(v) => s.setLarp({ hideBundled: v })} />
-        </label>
-        <label className="kv">
-          Masquer dev &gt; 10 % <Toggle on={s.larp.hideDevHeavy} onChange={(v) => s.setLarp({ hideDevHeavy: v })} />
-        </label>
-        <label className="kv">
-          GitHub requis <Toggle on={s.larp.requireGithub} onChange={(v) => s.setLarp({ requireGithub: v })} />
-        </label>
+        <div className="section-title">Filtres</div>
+        <p className="text-[11px] leading-snug text-mut">
+          Chaque colonne a son bouton <b className="text-txt">⚲ Filtres</b> (MC, âge, traders, dev, bundle, socials, mots-clés, LarpCheck). Les réglages d&apos;affichage et
+          l&apos;import/export sont dans <b className="text-txt">⚙ Affichage</b>.
+        </p>
       </div>
 
       <div className="p-3 text-[10px] leading-snug text-dim">

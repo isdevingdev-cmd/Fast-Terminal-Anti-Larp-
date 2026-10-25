@@ -24,9 +24,8 @@ export function serverRpcUrl(): string {
 export const PLATFORM_FEE_BPS = num(process.env.NEXT_PUBLIC_PLATFORM_FEE_BPS, 50);
 export const FEE_WALLET = process.env.NEXT_PUBLIC_FEE_WALLET || "";
 
-export const TRADE_PROVIDER = (process.env.NEXT_PUBLIC_TRADE_PROVIDER || "pumpportal") as
-  | "pumpportal"
-  | "native";
+/** "auto" (default): native pump.fun instructions on the curve, PumpPortal after migration. "pumpportal": proxy everywhere. */
+export const TRADE_PROVIDER = (process.env.NEXT_PUBLIC_TRADE_PROVIDER || "auto") as "auto" | "pumpportal";
 
 export const JITO_URL =
   process.env.NEXT_PUBLIC_JITO_URL || "https://mainnet.block-engine.jito.wtf/api/v1/transactions";

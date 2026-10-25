@@ -13,6 +13,8 @@ interface TokenApiResponse {
   symbol: string;
   uri: string;
   metadata: TokenMetadata | null;
+  supply?: string | null;
+  mayhem?: boolean;
 }
 
 async function work() {
@@ -34,6 +36,7 @@ async function work() {
           if (!cur.name && body.name) cur.name = body.name;
           if (!cur.symbol && body.symbol) cur.symbol = body.symbol;
           if (!cur.uri && body.uri) cur.uri = body.uri;
+          if (body.mayhem !== undefined) cur.mayhem = body.mayhem;
         }
         useTokenStore.getState().setMetadata(mint, body.metadata);
       } catch {

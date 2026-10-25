@@ -1,54 +1,51 @@
 "use client";
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useEffect } from "react";
+import { requestMetadata } from "@/lib/feed/metadataLoader";
 import type { TrackedToken } from "@/lib/pump/types";
 import { fmtCompact, fmtUsd, shortAddr, timeAgo } from "@/lib/format";
 import { useMarket } from "@/lib/store/market";
-import { useSettings } from "@/lib/store/settings";
-import { useLarp } from "@/lib/larpcheck/client";
+import { useFilters } from "@/lib/store/filters";
+import { useTokenStore } from "@/lib/store/tokens";
+import { TokenImage } from "@/components/ui/TokenImage";
 import { extractGithub } from "@/lib/pump/metadata";
 import { TierBadge } from "@/components/larp/TierBadge";
 import { QuickBuyButton } from "@/components/trade/QuickBuyButton";
 
-function TokenImage({ token, size = 36 }: { token: TrackedToken; size?: number }) {
-  const img = token.metadata?.image;
-  return (
-    <div className="relative flex-none" style={{ width: size, height: size }}>
-      {img ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={img} alt="" className="h-full w-full rounded-[9px] object-cover" loading="lazy" referrerPolicy="no-referrer" />
-      ) : (
-        <div className="h-full w-full rounded-[9px] bg-gradient-to-br from-line2 to-panel2" />
-      )}
-    </div>
-  );
-}
-
 export const TokenRow = memo(function TokenRow({ token, now }: { token: TrackedToken; now: number }) {
   const solUsd = useMarket((s) => s.solUsd);
-  const showUsd = useSettings((s) => s.showUsd);
-  const larp = useLarp(token);
+  const display = useFilters((s) => s.display);
+  const showUsd = display.showUsd;
+  // LarpCheck is scanned when the token page is opened; rows only show a result that already exists.
+  const larp = useTokenStore((s) => s.larp.get(token.mint));
   const github = extractGithub(token.metadata);
+  useEffect(() => {
+    if (token.metadataStatus === "idle") requestMetadata(token.mint);
+  }, [token.mint, token.metadataStatus]);
   const mc = showUsd && solUsd ? fmtUsd(token.marketCapSol * solUsd) : `${fmtCompact(token.marketCapSol)} SOL`;
   const vol = showUsd && solUsd ? fmtUsd(token.volumeSol * solUsd) : `${fmtCompact(token.volumeSol)} SOL`;
   const devPct = token.creatorTokenUnits > 0n ? Number(token.creatorTokenUnits) / 1e13 : 0; // % of 1e15 units
   const bundlePct = token.bundleShare * 100;
   const last = token.recentTrades[token.recentTrades.length - 1];
-  const flash = last && now - last.receivedAt < 800 ? (last.isBuy ? "flash-up" : "flash-dn") : "";
+  const flash = display.flashOnTrade && last && now - last.receivedAt < 800 ? (last.isBuy ? "flash-up" : "flash-dn") : "";
+  const compact = display.density === "compact";
 
   return (
     <Link
       href={`/token/${token.mint}`}
-      className={`grid grid-cols-[36px_1fr_auto] gap-2.5 border-b border-line px-3 py-2 transition-colors hover:bg-panel2 ${flash}`}
+      className={`grid gap-2.5 border-b border-line px-3 transition-colors hover:bg-panel2 ${compact ? "grid-cols-[28px_1fr_auto] py-1" : "grid-cols-[36px_1fr_auto] py-2"} ${flash}`}
     >
-      <TokenImage token={token} />
+      {display.showImages ? <TokenImage src={token.metadata?.image} size={compact ? 28 : 36} /> : <span />}
       <div className="min-w-0">
         <div className="flex items-center gap-1.5 text-[13px] font-bold">
           <span className="truncate">{token.symbol || shortAddr(token.mint)}</span>
           <span className="truncate font-medium text-mut">{token.name}</span>
-          <span className="ml-auto flex-none text-[11px] font-medium text-dim">{timeAgo(token.createdAt, now)}</span>
+          <span className="ml-auto flex-none text-[11px] font-medium text-dim" title={token.createdKnown ? "Âge depuis la création on-chain" : "Créé avant ta connexion — âge inconnu"}>
+            {token.createdKnown ? timeAgo(token.createdAt, now) : "ancien"}
+          </span>
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10.5px] text-dim">
+          {token.mayhem && <span className="flag flag-w" title="Mayhem mode : un agent IA pump.fun trade ce coin pendant 24 h (2 Md de supply)">MAYHEM</span>}
           {token.devSold && <span className="flag flag-b">DEV SOLD</span>}
           {bundlePct > 30 && <span className="flag flag-b">BUNDLE {bundlePct.toFixed(0)}%</span>}
           {bundlePct > 15 && bundlePct <= 30 && <span className="flag flag-w">BUNDLE {bundlePct.toFixed(0)}%</span>}
@@ -58,7 +55,6 @@ export const TokenRow = memo(function TokenRow({ token, now }: { token: TrackedT
           {token.metadata?.twitter && <em className="not-italic">𝕏</em>}
           {token.metadata?.telegram && <em className="not-italic">TG</em>}
           {token.metadata?.website && <em className="not-italic">🌐</em>}
-          {github && <span className="flag flag-c">GitHub</span>}
         </div>
         <div className="mt-1.5 flex gap-3 text-[11px] text-mut">
           <div>
@@ -79,15 +75,15 @@ export const TokenRow = memo(function TokenRow({ token, now }: { token: TrackedT
             </b>
           </div>
         </div>
-        {token.stage !== "migrated" && (
+        {token.stage !== "migrated" && !compact && (
           <div className="mt-1.5 h-[3px] overflow-hidden rounded bg-line2">
             <i className="block h-full bg-gradient-to-r from-acc to-cyan" style={{ width: `${Math.round(token.bondingProgress * 100)}%` }} />
           </div>
         )}
       </div>
       <div className="flex flex-col items-end justify-between gap-1">
-        <TierBadge entry={larp} />
-        <QuickBuyButton token={token} />
+        {larp ? <TierBadge entry={larp} /> : github ? <span className="flag flag-c" title="Repo GitHub trouvé — scan LarpCheck à l'ouverture">LARP ?</span> : <span className="flag flag-n" title="Pas de GitHub dans les metadata">no GH</span>}
+        {display.quickBuyOnRows && <QuickBuyButton token={token} />}
       </div>
     </Link>
   );

@@ -111,11 +111,26 @@ export function decodeEventBytes(data: Uint8Array, ctx: DecodeContext): PumpEven
           uri: r.string(),
           mint: r.pubkey(),
           bondingCurve: r.pubkey(),
-          creator: r.pubkey(),
+          user: r.pubkey(),
+          creator: "",
           signature: ctx.signature,
           slot: ctx.slot,
           receivedAt,
         };
+        ev.creator = ev.user;
+        // Extended CreateEvent (2025+): creator, timestamp, initial reserves, total supply, then flags we don't decode yet.
+        if (r.remaining >= 32 + 8 * 5) {
+          ev.creator = r.pubkey();
+          ev.timestamp = Number(r.i64());
+          ev.virtualTokenReserves = r.u64();
+          ev.virtualSolReserves = r.u64();
+          ev.realTokenReserves = r.u64();
+          ev.tokenTotalSupply = r.u64();
+          if (r.remaining >= 84) {
+            // Trailing block observed on-chain (84 bytes). Layout not published; we keep the raw tail for later decoding.
+            ev.tail = r.bytes(r.remaining).slice();
+          }
+        }
         return ev;
       }
       case EVENT_DISCRIMINATORS.CompleteEvent: {

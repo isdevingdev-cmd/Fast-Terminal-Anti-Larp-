@@ -44,7 +44,7 @@ export async function backfillToken(mint: string, limit = 300): Promise<number> 
     const chunk = want.slice(i, i + 100);
     let txs: Awaited<ReturnType<typeof conn.getTransactions>> = [];
     try {
-      txs = await conn.getTransactions(chunk, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+      txs = await conn.getTransactions(chunk, { maxSupportedTransactionVersion: 255, commitment: "confirmed" });
     } catch (e) {
       console.warn("[backfill] getTransactions", e);
       break;
@@ -58,41 +58,52 @@ export async function backfillToken(mint: string, limit = 300): Promise<number> 
           if (!token.name) token.name = ev.name;
           if (!token.symbol) token.symbol = ev.symbol;
           if (!token.uri) token.uri = ev.uri;
-          if (!token.creator) token.creator = ev.creator;
-          token.createdAt = Math.min(token.createdAt, ev.receivedAt);
-          token.stage = token.stage === "migrated" ? "migrated" : token.stage;
+          if (!token.creator) token.creator = ev.creator || ev.user;
+          token.createdAt = ev.timestamp ? ev.timestamp * 1000 : Math.min(token.createdAt, ev.receivedAt);
+          token.createdKnown = true;
+          if (ev.tokenTotalSupply) token.totalSupplyUnits = ev.tokenTotalSupply;
+          if (ev.virtualSolReserves) token.initialVirtualSol = ev.virtualSolReserves;
         }
         if (ev.kind === "complete" && ev.mint === mint) token.stage = "migrated";
       }
     });
   }
-  if (trades.length) {
-    const merged = [...token.recentTrades, ...trades];
+  const priced = trades.filter((t) => t.solAmount > 0n && t.virtualSolReserves > 0n);
+  if (priced.length) {
+    const merged = [...token.recentTrades, ...priced];
     merged.sort((a, b) => a.timestamp - b.timestamp || a.slot - b.slot);
     token.recentTrades = merged.slice(-1000);
     // Fill identity stats from history when the live feed had nothing yet.
     if (token.tradeCount === 0) {
-      token.tradeCount = trades.length;
-      token.buyCount = trades.filter((t) => t.isBuy).length;
-      token.sellCount = trades.length - token.buyCount;
-      token.volumeSol = trades.reduce((a, t) => a + Number(t.solAmount) / 1e9, 0);
+      token.tradeCount = priced.length;
+      token.buyCount = priced.filter((t) => t.isBuy).length;
+      token.sellCount = priced.length - token.buyCount;
+      token.volumeSol = priced.reduce((a, t) => a + Number(t.solAmount) / 1e9, 0);
       for (const t of trades) token.traders.add(t.user);
       const latest = token.recentTrades[token.recentTrades.length - 1];
       if (latest) {
         token.virtualSolReserves = latest.virtualSolReserves;
         token.virtualTokenReserves = latest.virtualTokenReserves;
-        token.marketCapSol = marketCapSol(latest.virtualSolReserves, latest.virtualTokenReserves);
+        token.marketCapSol = marketCapSol(latest.virtualSolReserves, latest.virtualTokenReserves, token.totalSupplyUnits);
         token.bondingProgress = bondingProgress(latest.virtualTokenReserves);
         token.lastTradeAt = latest.receivedAt;
       }
       if (token.creator) {
-        for (const t of trades) {
+        for (const t of priced) {
           if (t.user !== token.creator) continue;
           token.creatorTokenUnits += t.isBuy ? t.tokenAmount : -t.tokenAmount;
           token.devNetSol += (t.isBuy ? 1 : -1) * (Number(t.solAmount) / 1e9);
           if (!t.isBuy) token.devSold = true;
         }
       }
+    }
+  }
+  if (!token.createdKnown && ok.length) {
+    // No CreateEvent within the fetched window: the oldest signature we saw is at least that old.
+    const oldest = ok[ok.length - 1];
+    if (oldest.blockTime) {
+      token.createdAt = Math.min(token.createdAt, oldest.blockTime * 1000);
+      token.createdKnown = ok.length < limit; // if we exhausted history, that oldest tx is the creation
     }
   }
   useTokenStore.setState((s) => ({ version: s.version + 1 }));
