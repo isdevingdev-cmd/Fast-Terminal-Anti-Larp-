@@ -1,8 +1,8 @@
 # Fast Terminal — Anti-Larp
 
-Terminal de trading Solana pour les trenches : rapide, non-custodial, à frais réduits, avec un scoring **LarpCheck** intégré qui note la crédibilité GitHub du développeur de chaque token avant que tu n'appuies sur *buy*.
+Terminal de trading Solana pour les trenches : rapide, non-custodial, **0 % de frais plateforme**, avec un scoring **LarpCheck** intégré qui note la crédibilité GitHub du développeur de chaque token avant que tu n'appuies sur *buy*.
 
-Inspiré de la structure de [Motion](https://motion.gift/) (trenches New / Almost bonded / Migrated, presets Eco/Fast/Turbo, wallets in-browser) et des six vérifications de [LARP CHECK](https://larpcheck.live/), réimplémentés from scratch.
+Fork fonctionnel de [Motion](https://motion.gift/) (structure trenches, presets Eco/Fast/Turbo, wallets in-browser, routage pump.fun/PumpSwap), reconstruit avec l'accord de son auteur à partir du site et du moteur public [motion-vault](https://github.com/motiongift/motion-vault) ; six vérifications de [LARP CHECK](https://larpcheck.live/) réimplémentées.
 
 ## Ce que fait le code aujourd'hui
 
@@ -13,7 +13,7 @@ Inspiré de la structure de [Motion](https://motion.gift/) (trenches New / Almos
 | Page token | ✅ | Chart en bougies (lightweight-charts) construit depuis les trades + backfill on-chain, flux de trades, top traders, sécurité, dev, distribution. |
 | Wallet | ✅ | Keypairs générés/importés dans le navigateur, chiffrés AES-256-GCM (PBKDF2) en localStorage, export clé privée. |
 | Trading natif (courbe) | ✅ simulé mainnet | `src/lib/trade/native.ts` construit `buy_exact_quote_in_v3` / `sell_v3` de pump.fun en local (0 intermédiaire). Buy et sell simulés avec succès sur mainnet le 2026-10-25 (`docs/pump-v3.md`). Signature locale, frais plateforme + tip Jito dans la même tx. |
-| Trading après migration | ✅ | PumpSwap / Raydium / Bonk via **PumpPortal local API** (0,5 % PumpPortal) en attendant la version native de l'AMM. Repli automatique si le natif échoue. |
+| Trading après migration | ✅ simulé mainnet | PumpSwap natif (`src/lib/trade/pumpRouter.ts`) : pool canonique dérivé du mint, quote avec les paliers de frais on-chain, wSOL wrap/unwrap. Buy et sell simulés OK. PumpPortal uniquement en repli. |
 | Filtres | ✅ | Par colonne (MC, âge, traders, tx, volume, dev, bundle, bonding, socials, image, GitHub, mots-clés, Mayhem, LarpCheck), réglages d'affichage, import/export JSON. |
 | LarpCheck | ✅ | `/api/larpcheck` : six checks sur l'API GitHub, score /10, tier S–F, heatmap de commits. Scan déclenché à l'ouverture d'un token (pas sur les lignes, pour ménager l'API GitHub), panneau détaillé, page scanner. |
 | Positions | ✅ | PnL live depuis la courbe, soldes SPL rafraîchis, ventes 25/50/100 %. TP/SL : modèle prêt, exécution automatique **à faire**. |
@@ -57,13 +57,13 @@ Principes : la couche `lib/pump`, `lib/chart` et `lib/larpcheck/scoring` est pur
 
 ## Frais
 
-- Frais plateforme : `NEXT_PUBLIC_PLATFORM_FEE_BPS` (50 = 0,5 %), transférés vers `NEXT_PUBLIC_FEE_WALLET` dans la transaction signée par l'utilisateur.
+- Frais plateforme : **0 %** par défaut (`NEXT_PUBLIC_PLATFORM_FEE_BPS=0`). Si un jour tu veux en prélever, mets des bps et un `NEXT_PUBLIC_FEE_WALLET` : le transfert est ajouté dans la transaction signée par l'utilisateur.
 - pump.fun prélève 1 % sur toutes les plateformes.
-- Sur la bonding curve, aucun intermédiaire (instructions natives). Après migration, PumpPortal prélève 0,5 % supplémentaires jusqu'à la version native de PumpSwap.
+- Courbe et PumpSwap : aucun intermédiaire (instructions natives, frais pump.fun lus on-chain). PumpPortal (0,5 %) seulement en repli.
 
 ## Roadmap
 
-1. PumpSwap natif (supprimer le dernier intermédiaire après migration) ; décodage des trades PumpSwap pour un MC live dans la colonne Migrated.
+1. Décodage des trades PumpSwap pour un MC live dans la colonne Migrated ; Meteora DLMM pour les coins sans pool PumpSwap.
 2. Exécution automatique des TP/SL (worker côté client tant qu'un onglet est ouvert, comme Motion).
 3. Tracker de wallets (`subscribe` sur des adresses), alertes.
 4. Tout le marché SOL : Bonk (LaunchLab), Believe, Moonshot, puis multi-chaînes (Base, BNB).

@@ -76,8 +76,8 @@ export function TopNav() {
         ))}
       </div>
 
-      <Link href="/fee-audit" className="pill border-up/35 bg-up/10 text-up" title="Frais plateforme par trade">
-        {(PLATFORM_FEE_BPS / 100).toFixed(2).replace(/\.?0+$/, "")}% fee
+      <Link href="/fee-audit" className="pill border-up/35 bg-up/10 text-up" title="Frais plateforme par trade — tu ne paies que le réseau et pump.fun">
+        {PLATFORM_FEE_BPS === 0 ? "0% fee" : `${(PLATFORM_FEE_BPS / 100).toFixed(2).replace(/\.?0+$/, "")}% fee`}
         <span className="font-medium text-dim">
           · {COMPETITOR_FEES.slice(0, 2).map((c) => `${c.name} ${c.bps / 100}%`).join(" · ")}
         </span>

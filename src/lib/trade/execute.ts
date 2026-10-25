@@ -16,13 +16,13 @@ import type { TradeProvider, TradeRequest, TradeResult } from "./types";
 import { usePositions } from "../store/positions";
 
 /**
- * Native builder on the bonding curve (no middleman fee, simulated OK on mainnet 2026-10-25);
- * PumpPortal for everything else (PumpSwap / Raydium / Bonk) until the native AMM leg lands.
- * NEXT_PUBLIC_TRADE_PROVIDER=pumpportal forces the proxy everywhere.
+ * Native builder for pump.fun (bonding curve v3 + PumpSwap AMM), no middleman fee.
+ * PumpPortal only as a fallback (build failure) or when NEXT_PUBLIC_TRADE_PROVIDER=pumpportal.
  */
 function pickProvider(connection: Connection, req: TradeRequest): TradeProvider {
   if (TRADE_PROVIDER === "pumpportal") return pumpPortalProvider;
-  return req.pool === "pump" ? makeNativeProvider(connection) : pumpPortalProvider;
+  // native handles the curve and PumpSwap; anything else (Raydium, Bonk…) goes through the proxy
+  return req.pool === "pump" || req.pool === "pump-amm" || req.pool === "auto" ? makeNativeProvider(connection) : pumpPortalProvider;
 }
 
 async function loadLookupTables(connection: Connection, tx: VersionedTransaction): Promise<AddressLookupTableAccount[]> {

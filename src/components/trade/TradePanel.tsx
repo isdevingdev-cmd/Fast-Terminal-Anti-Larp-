@@ -135,7 +135,7 @@ export function TradePanel({ token }: { token: TrackedToken }) {
 
       <div className="mt-2 flex justify-between text-[10.5px] text-dim">
         <span>
-          Frais plateforme <b className="font-semibold text-up">{PLATFORM_FEE_BPS / 100}%</b> ({fmtSol(fees.ours, 4)} SOL)
+          Frais plateforme <b className="font-semibold text-up">{PLATFORM_FEE_BPS === 0 ? "0 %" : `${PLATFORM_FEE_BPS / 100}% (${fmtSol(fees.ours, 4)} SOL)`}</b>
         </span>
         <span>{COMPETITOR_FEES.slice(0, 2).map((c) => `${c.name} ${fmtSol(fees.competitors.find((x) => x.name === c.name)?.fee ?? 0, 4)}`).join(" · ")}</span>
       </div>

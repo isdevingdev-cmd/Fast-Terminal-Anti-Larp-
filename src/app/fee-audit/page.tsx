@@ -10,15 +10,15 @@ export default function FeeAuditPage() {
     <div className="mx-auto max-w-4xl overflow-y-auto p-8">
       <h1 className="text-2xl font-extrabold">Fee audit</h1>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-mut">
-        Chaque trade passé sur {APP_NAME} paie exactement ce qui est listé ici, inscrit dans la transaction que tu signes toi-même. Pas de spread
-        caché, pas de « routing fee ». Tu peux vérifier chaque transfert sur Solscan.
+        Chaque trade passé sur {APP_NAME} paie exactement ce qui est listé ici, inscrit dans la transaction que tu signes toi-même. Pas de frais
+        plateforme, pas de spread caché, pas de « routing fee » : tu paies le réseau et pump.fun, rien d&apos;autre. Tu peux vérifier chaque transfert sur Solscan.
       </p>
 
       <div className="mt-6 grid gap-3 md:grid-cols-3">
         <div className="rounded-lg border border-up/30 bg-up/10 p-4">
           <small className="text-[10px] uppercase tracking-wider text-up">Frais {APP_NAME}</small>
           <b className="block text-3xl font-extrabold">{ours}%</b>
-          <span className="text-xs text-mut">transfert SOL vers le wallet de la plateforme, dans la même tx</span>
+          <span className="text-xs text-mut">{ours === 0 ? "aucun transfert vers la plateforme : la transaction ne contient que le swap" : "transfert SOL vers le wallet de la plateforme, dans la même tx"}</span>
         </div>
         <div className="rounded-lg border border-line2 bg-panel p-4">
           <small className="text-[10px] uppercase tracking-wider text-dim">Frais pump.fun</small>
@@ -30,7 +30,7 @@ export default function FeeAuditPage() {
           <b className="block text-3xl font-extrabold">{middleman}%</b>
           <span className="text-xs text-mut">
             {auto
-              ? "sur la bonding curve : instructions pump.fun construites en local, aucun intermédiaire. Après migration (PumpSwap) : PumpPortal, 0,5 % en attendant la version native."
+              ? "bonding curve et PumpSwap : instructions construites en local avec les frais lus on-chain, aucun intermédiaire. PumpPortal (0,5 %) uniquement en repli."
               : "PumpPortal (local API) forcé par la configuration"}
           </span>
         </div>
@@ -73,7 +73,7 @@ export default function FeeAuditPage() {
         <li>Compute budget : limite + prix unitaire (ta priority fee).</li>
         <li>Création idempotente de ton compte token si nécessaire.</li>
         <li>Instruction <code className="rounded bg-panel2 px-1">buy</code> du programme pump.fun (ou swap PumpSwap après migration).</li>
-        <li>Transfert SOL de {ours}% vers le wallet plateforme.</li>
+        {ours > 0 && <li>Transfert SOL de {ours}% vers le wallet plateforme.</li>}
         <li>Si MEV protect : transfert du tip vers un compte Jito et envoi via le block engine.</li>
       </ol>
     </div>

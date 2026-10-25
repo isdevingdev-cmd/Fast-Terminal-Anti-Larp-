@@ -20,8 +20,8 @@ export function serverRpcUrl(): string {
   return process.env["RPC_URL"] || process.env["NEXT_PUBLIC_RPC_URL"] || RPC_URL;
 }
 
-/** Platform fee in basis points. 50 = 0.5 %. */
-export const PLATFORM_FEE_BPS = num(process.env.NEXT_PUBLIC_PLATFORM_FEE_BPS, 50);
+/** Platform fee in basis points. 0 by default: like Motion, the user pays the network and pump.fun only. */
+export const PLATFORM_FEE_BPS = num(process.env.NEXT_PUBLIC_PLATFORM_FEE_BPS, 0);
 export const FEE_WALLET = process.env.NEXT_PUBLIC_FEE_WALLET || "";
 
 /** "auto" (default): native pump.fun instructions on the curve, PumpPortal after migration. "pumpportal": proxy everywhere. */
